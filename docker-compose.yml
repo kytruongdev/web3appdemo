@@ -1,0 +1,56 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    container_name: web3appdemo-db
+    environment:
+      POSTGRES_DB: web3appdemo
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    image: migrate/migrate:v4.15.2
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./data/migrations:/migrations
+    entrypoint: ["migrate", "-path", "/migrations", "-database", "postgres://postgres:postgres@db:5432/web3appdemo?sslmode=disable"]
+    command: ["up"]
+    profiles: ["tools"]
+    networks:
+      - backend
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3005:3005"
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+    networks:
+      - backend
+    environment:
+      PG_URL: postgres://postgres:postgres@db:5432/web3appdemo?sslmode=disable
+      SERVER_ADDR: ":3005"
+
+volumes:
+  pgdata:
+
+networks:
+  backend:
